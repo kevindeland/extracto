@@ -1,0 +1,75 @@
+var parseString = require('xml2js').parseString;
+
+var parse = function(xml, callback) {
+    parseString(xml, function(err, result) {
+	if(err) {
+	    callback(err);
+	    return;
+	}
+	callback(null, result);
+    });
+};
+
+var getDoc = function(xml, callback) {
+    parse(xml, function(err, result) {
+	if(err) {
+	    callback(err);
+	    return;
+	}
+	var doc = result.rep.doc[0];
+	for(var key in doc) {
+//	    console.log(key, doc[key]);
+	}
+	callback(null, doc);
+    });
+};
+
+var getSents = function(xml, callback) {
+    getDoc(xml, function(err, result) {
+	if(err) {
+	    callback(err);
+	    return;
+	}
+	var justText= [];
+	var sentArray = result.sents[0].sent;
+	sentArray.forEach(function(sent) {
+	    justText.push(sent.text[0]);
+	});
+	callback(null, sentArray);
+    });
+}
+
+var parseIntoTree = function(xml, callback) {
+    getSents(xml, function(err, sentArray) {
+	if(err) {
+	    callback(err);
+	    return;
+	}
+	
+	var justParses = [];
+	sentArray.forEach(function(sent) {
+	    var parse = sent.parse[0]
+	    justParses.push(parse);
+	    parseMe(parse);
+	    
+	});		    
+	callback(null, justParses);
+    });
+
+}
+
+function parseMe(parsable) {
+    parsable = parsable['_'];
+    console.log(typeof parsable);
+    console.log(parsable);
+//    var tokens = parsable.split(' ');
+  //  console.log(tokens);
+        
+}
+
+module.exports = {
+    parse: parse,
+    getDoc: getDoc,
+    getSents: getSents,
+    parseIntoTree: parseIntoTree
+}
