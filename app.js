@@ -9,13 +9,16 @@ var url = require('url');
 var querystring = require('querystring');
 var xmlescape = require('xml-escape');
 var reParser = require('./lib/reParser');
+var bodyParser = require('body-parser');
 //var parseString = require('xml2js').parseString;
+var fs = require('fs');
 
 // setup middleware
 var app = express();
-app.use(express.errorHandler());
-app.use(express.urlencoded()); // to support URL-encoded bodies
-app.use(app.router);
+//app.use(express.errorHandler());
+app.use(bodyParser.urlencoded({extended: false}));// app.use(express.urlencoded()); // to support URL-encoded bodies
+app.use(bodyParser.json());
+//app.use(app.router);
 
 app.use(express.static(__dirname + '/public')); //setup static public directory
 app.set('view engine', 'jade');
@@ -64,51 +67,99 @@ app.get('/', function(req, res){
     res.render('index');
 });
 
+
+var caller = require('./lib/caller');
+var treeToMap = require('./lib/treeToMap').treeToMap;
+var randomizer = require('./lib/randomizer');
+
+app.post('/wtf', function(req, res) {
+    console.log('querying for', req.body.txt);
+    
+    caller.wtf(req.body.txt, function(err, tree) {
+	if(err)  {
+	    res.send(err);
+	    return;
+	}
+	
+	treeToMap(tree[0], function(err, map) {
+	    if(err) {
+		res.send(err);
+		return;
+	    }
+	    
+	    var newSong = randomizer.substituteRandom(map, 'root');
+
+	    res.send(newSong);
+	});
+    });
+});
+
 // Handle the form POST containing the text to identify with Watson and reply with the language
 app.post('/', function(req, res){
+    console.log(req.body);
 
-  var parts = url.parse(service_url);
+    var parts = url.parse(service_url);
 
-  // create the request options from our form to POST to Watson
-  var options = { 
-    host: parts.hostname,
-    port: parts.port,
-    path: parts.pathname,
-    method: 'POST',
-    headers: {
-      'Content-Type'  :'application/x-www-form-urlencoded',
-      'X-synctimeout' : '30',
-      'Authorization' :  auth }
-  };
+    // create the request options from our form to POST to Watson
+    var options = { 
+	host: parts.hostname,
+	port: parts.port,
+	path: parts.pathname,
+	method: 'POST',
+	headers: {
+	    'Content-Type'  :'application/x-www-form-urlencoded',
+	    'X-synctimeout' : '30',
+	    'Authorization' :  auth }
+    };
+    console.log(options);
 
-  // Create a request to POST to Watson
-  var watson_req = https.request(options, function(result) {
-    result.setEncoding('utf-8');
-    var resp_string = '';
+    // Create a request to POST to Watson
+    var watson_req = https.request(options, function(result) {
+	result.setEncoding('utf-8');
+	var resp_string = '';
 
-    result.on("data", function(chunk) {
-      resp_string += chunk;
-    });
-
-    result.on('end', function() {
-	reParser.parseIntoTree(resp_string, function(err, result) {
-	    console.log(result);
-	    return res.render('index',{'xml':JSON.stringify(result), 'text':req.body.txt})	    
-//	    return res.render('index',{'xml':xmlescape(resp_string), 'text':req.body.txt})	    
+	result.on("data", function(chunk) {
+	    resp_string += chunk;
 	});
 
+	result.on('end', function() {
+	    console.log(resp_string);
+	    reParser.parseIntoTree(resp_string, function(err, result) {
+		console.log(result);
+		var count = 0;
+		result.forEach(function(tree) {
+//		    reParser.classify(tree);
+		    count++;
+		    if(count == result.length) {
+			
+			
+			return res.render('index',{'xml':JSON.stringify(result), 'text':req.body.txt})
+		    }
+		});
+	    });
+	    
 
-    })
+	});
 
-  });
+    });
 
-  watson_req.on('error', function(e) {
-    return res.render('index', {'error':e.message})
-  });
+    watson_req.on('error', function(e) {
+	return res.render('index', {'error':e.message})
+    });
 
-  // Whire the form data to the service
-  watson_req.write(querystring.stringify(req.body));
-  watson_req.end();
+    var sendMe = querystring.stringify(req.body) ;
+    console.log(sendMe);
+    // Whire the form data to the service
+    watson_req.write(sendMe);
+    watson_req.end();
+});
+
+fs.readdirSync('./routes').forEach(function(file) {
+    if(file.substr(-3) == '.js') {
+	var router = express.Router();
+	var prefix = file.substring(0, file.length-3);
+	app.use('/' + prefix, require('./routes/' + prefix).controller(router));
+    }
 });
 
 
