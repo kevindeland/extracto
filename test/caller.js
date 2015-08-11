@@ -49,6 +49,17 @@ describe('Caller', function() {
 	    });
 	});
     });
+
+    describe('simpleRequest', function() {
+	this.timeout(5000);
+	it('should do something...', function(done) {
+	    C.simpleRequest(destruction, function(err, hey) {
+		console.log(hey);
+		
+		done();
+	    });
+	});
+    });
 });
 
 
